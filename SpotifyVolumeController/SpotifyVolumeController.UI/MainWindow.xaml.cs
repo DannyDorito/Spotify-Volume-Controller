@@ -2,6 +2,12 @@
 using System.Configuration;
 using System.Windows;
 using System.Windows.Forms;
+using SpotifyAPI.Web; //Base Namespace
+using SpotifyAPI.Web.Enums; //Enums
+using SpotifyAPI.Web.Models; //Models for the JSON-responses
+using SpotifyAPI.Web.Auth;
+using System.Threading.Tasks;
+using System;
 
 namespace SpotifyVolumeController.UI
 {
@@ -16,6 +22,13 @@ namespace SpotifyVolumeController.UI
 
         private bool IsDebug { get => bool.Parse(ConfigurationManager.AppSettings["Debug"]); }
 
+        private string SpotifyClientId { get => ConfigurationManager.AppSettings["SpotifyClientId"]; }
+
+        private string SpotifyClientSecret { get => ConfigurationManager.AppSettings["SpotifyClientSecret"];  }
+
+        private SpotifyWebAPI SpotifyWebAPI;
+        ImplicitGrantAuth ImplicitGrantAuth;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -27,6 +40,7 @@ namespace SpotifyVolumeController.UI
             {
                 DebugBox.Items.Add($"Hook bound: {golbalHookSuccessful}");
             }
+
         }
 
         #region Keyboard Hook
@@ -47,12 +61,24 @@ namespace SpotifyVolumeController.UI
             }
         }
 
-        private void GlobalMouseHWheel(object sender, MouseEventArgs mouseEventArgs)
+        private async void GlobalMouseHWheel(object sender, MouseEventArgs mouseEventArgs)
         {
+            var delta = mouseEventArgs.Delta / DeltaOffset;
+
             if (IsDebug)
             {
-                DebugBox.Items.Add($"{mouseEventArgs.Delta / DeltaOffset} {mouseEventArgs.X},{mouseEventArgs.Y} {mouseEventArgs.Location}");
+                DebugBox.Items.Add(delta);
             }
+
+            var playbackContext = await SpotifyWebAPI.GetPlaybackAsync();
+
+            if (playbackContext != null && playbackContext.IsPlaying && !playbackContext.HasError())
+            {
+                var playbackPercent = playbackContext.Device.VolumePercent;
+
+                var response = SpotifyWebAPI.SetVolumeAsync(playbackPercent + delta);
+            }
+
         }
 
         public void Unsubscribe()
@@ -79,11 +105,28 @@ namespace SpotifyVolumeController.UI
             Unsubscribe();
         }
 
+        #endregion UI Event Handlers
+
         private void Auth_Click(object sender, RoutedEventArgs e)
         {
+            ImplicitGrantAuth = new ImplicitGrantAuth(
+                SpotifyClientId,
+                "http://localhost:4002",
+                "http://localhost:4002",
+                Scope.UserReadPrivate
+            );
+            ImplicitGrantAuth.AuthReceived += async (senders, payload) =>
+            {
+                ImplicitGrantAuth.Stop(); // `sender` is also the auth instance
+                SpotifyWebAPI = new SpotifyWebAPI()
+                {
+                    TokenType = payload.TokenType,
+                    AccessToken = payload.AccessToken
+                };
+            };
+            ImplicitGrantAuth.Start(); // Starts an internal HTTP Server
 
+            ImplicitGrantAuth.OpenBrowser();
         }
-
-        #endregion UI Event Handlers
     }
 }
