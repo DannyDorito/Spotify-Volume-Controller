@@ -109,6 +109,7 @@ namespace SpotifyVolumeController.UI
 
         private void Auth_Click(object sender, RoutedEventArgs e)
         {
+            //https://johnnycrazy.github.io/SpotifyAPI-NET/docs/5.1.1/auth/implicit_grant
             ImplicitGrantAuth = new ImplicitGrantAuth(
                 SpotifyClientId,
                 "http://localhost:4002",
