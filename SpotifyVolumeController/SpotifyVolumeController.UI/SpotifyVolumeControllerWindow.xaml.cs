@@ -73,24 +73,13 @@ namespace SpotifyVolumeController.UI
         /// <summary>
         /// Authorisation for the API, set in <see cref="SpotifyVolumeControllerWindow"/>
         /// </summary>
-        private readonly ImplicitGrantAuth ImplicitGrantAuth;
+        private ImplicitGrantAuth ImplicitGrantAuth;
 
         #endregion Spotify API Variables
 
         public SpotifyVolumeControllerWindow()
         {
             InitializeComponent();
-
-            DebugListBox.IsEnabled = IsDebug;
-
-            DebugLog($"Hook bound: {SubscribeGlobalHook()}");
-
-            ImplicitGrantAuth = new ImplicitGrantAuth(
-              ClientId,
-              RedirectURL,
-              ServerURL,
-              AuthScope
-            );
         }
 
         #region Keyboard Hook
@@ -171,6 +160,25 @@ namespace SpotifyVolumeController.UI
         #region UI Event Handlers
 
         /// <summary>
+        /// Set debug and auth when window is fully loaded
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            DebugListBox.IsEnabled = IsDebug;
+
+            DebugLog($"Hook bound: {SubscribeGlobalHook()}");
+
+            ImplicitGrantAuth = new ImplicitGrantAuth(
+              ClientId,
+              RedirectURL,
+              ServerURL,
+              AuthScope
+            );
+        }
+
+        /// <summary>
         /// Unsubscribe from hook when exiting the window
         /// </summary>
         /// <param name="sender"></param>
@@ -201,6 +209,12 @@ namespace SpotifyVolumeController.UI
             ImplicitGrantAuth.OpenBrowser();
             DebugLog("Opened Auth Browser");
         }
+
+        /// <summary>
+        /// Opens settings window
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
             if (IsDebug)

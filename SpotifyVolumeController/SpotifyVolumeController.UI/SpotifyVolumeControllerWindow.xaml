@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="Spotify Volume Controller" Height="357" Width="340" Unloaded="Window_Unloaded" SizeToContent="WidthAndHeight">
+        Title="Spotify Volume Controller" Height="357" Width="340" Unloaded="Window_Unloaded" SizeToContent="WidthAndHeight" Loaded="Window_Loaded">
     <Grid>
         <ListBox x:Name="DebugListBox" d:ItemsSource="{d:SampleData ItemCount=10}" Margin="10,65,10,10" IsEnabled="False" FontFamily="Cascadia Mono SemiLight" FontSize="14" IsSynchronizedWithCurrentItem="False" Background="{x:Null}" BorderBrush="#FF707070"/>
         <Button x:Name="AuthButton" Content="Authorise" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Click="Auth_Click" Width="265" Height="50" FontFamily="Cascadia Mono" FontSize="14" Background="{x:Null}" BorderBrush="#FF707070"/>
