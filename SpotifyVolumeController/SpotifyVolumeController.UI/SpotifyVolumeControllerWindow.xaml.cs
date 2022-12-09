@@ -201,6 +201,14 @@ namespace SpotifyVolumeController.UI
             ImplicitGrantAuth.OpenBrowser();
             DebugLog("Opened Auth Browser");
         }
+        private void SettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (IsDebug)
+            {
+                var settingsWindow = new SettingsWindow();
+                settingsWindow.ShowDialog();
+            }
+        }
 
         #endregion UI Event Handlers
 
