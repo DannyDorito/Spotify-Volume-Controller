@@ -5,6 +5,7 @@ using System.Windows.Forms;
 using SpotifyAPI.Web;
 using SpotifyAPI.Web.Enums;
 using SpotifyAPI.Web.Auth;
+using System.Diagnostics;
 
 namespace SpotifyVolumeController.UI
 {
@@ -234,9 +235,13 @@ namespace SpotifyVolumeController.UI
         /// <param name="message">Message to log to <see cref="DebugBox"/></param>
         private void DebugLog(object message)
         {
+            var messageString = message as string;
+
+            Debug.WriteLine(messageString);
+
             if (IsDebug)
             {
-                DebugListBox.Items.Add(message as string);
+                DebugListBox.Items.Add(messageString);
             }
         }
 
