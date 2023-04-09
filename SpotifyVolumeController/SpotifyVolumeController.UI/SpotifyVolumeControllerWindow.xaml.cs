@@ -6,6 +6,8 @@ using SpotifyAPI.Web;
 using SpotifyAPI.Web.Enums;
 using SpotifyAPI.Web.Auth;
 using System.Diagnostics;
+using System;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
 
 namespace SpotifyVolumeController.UI
 {
@@ -32,6 +34,11 @@ namespace SpotifyVolumeController.UI
         /// Maximum volume clamp value
         /// </summary>
         private int ClampMax { get => 100; }
+
+        /// <summary>
+        /// Previous volume of the client
+        /// </summary>
+        private int PreviousVolume { get; set; }
 
         #endregion Mouse Wheel Hook Variables
 
@@ -129,30 +136,42 @@ namespace SpotifyVolumeController.UI
             {
                 var delta = mouseEventArgs.Delta / DeltaOffset;
 
-                DebugLog($"Delta : {delta}");
+                DebugLog($"Delta: {delta}");
 
                 // get the playback context from the API
                 var playbackContext = await SpotifyWebAPI.GetPlaybackAsync();
 
-                if (playbackContext != null && !playbackContext.HasError())
+                if (playbackContext != null && !playbackContext.HasError() && playbackContext.Device != null)
                 {
-                    // TODO: save previous volume and negate that from current volume to prevent volume jumps
                     var currentVolume = playbackContext.Device.VolumePercent;
                     // clamp the desired volume between 0 and 100
                     var desiredVolume = Clamp(currentVolume + delta, ClampMin, ClampMax);
-
-                    // prevent unnecessary API calls if the value is the same e.g. volume may have been clamped
-                    if (currentVolume != desiredVolume)
+                    // get change in value
+                    var volumeChange = Math.Abs(desiredVolume - PreviousVolume);
+                    if (volumeChange > 0)
                     {
-                        var response = await SpotifyWebAPI.SetVolumeAsync(desiredVolume);
-
-                        // only log if there is an error
-                        if (response != null && response.HasError())
+                        // prevent unnecessary API calls if the value is the same e.g. volume may have been clamped
+                        if (currentVolume != desiredVolume)
                         {
-                            DebugLog(response.Error.Message);
+                            PreviousVolume = desiredVolume;
+                            var response = await SpotifyWebAPI.SetVolumeAsync(desiredVolume);
+
+                            // only log if there is an error
+                            if (response != null && response.HasError())
+                            {
+                                DebugLog(response.Error.Message);
+                            }
                         }
                     }
                 }
+                else
+                {
+                    DebugLog("Playback context cannot be found");
+                }
+            }
+            else
+            {
+                DebugLog("Mouse Event was not bound");
             }
         }
 
@@ -228,7 +247,7 @@ namespace SpotifyVolumeController.UI
         #endregion UI Event Handlers
 
         #region Helper Methods
-        
+
         /// <summary>
         /// Log a message to <see cref="DebugBox"/> if <see cref="IsDebug"/> is tue
         /// </summary>
