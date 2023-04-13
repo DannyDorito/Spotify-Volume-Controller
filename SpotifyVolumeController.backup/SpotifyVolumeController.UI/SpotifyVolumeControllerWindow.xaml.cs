@@ -2,12 +2,12 @@
 using System.Configuration;
 using System.Windows;
 using System.Windows.Forms;
+using SpotifyAPI.Web;
+using SpotifyAPI.Web.Enums;
+using SpotifyAPI.Web.Auth;
 using System.Diagnostics;
 using System;
-using SpotifyAPI.Web.Auth;
-using SpotifyAPI.Web;
-using System.Collections.Generic;
-using System.Threading.Tasks;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.Button;
 
 namespace SpotifyVolumeController.UI
 {
@@ -23,17 +23,17 @@ namespace SpotifyVolumeController.UI
         /// <summary>
         /// Mousewheel delta offset for the mousewheel movement
         /// </summary>
-        private static int DeltaOffset { get => int.Parse(ConfigurationManager.AppSettings["DeltaOffset"]); }
+        private int DeltaOffset { get => int.Parse(ConfigurationManager.AppSettings["DeltaOffset"]); }
 
         /// <summary>
         /// Minimum volume clamp value
         /// </summary>
-        private static int ClampMin { get => 0; }
+        private int ClampMin { get => 0; }
 
         /// <summary>
         /// Maximum volume clamp value
         /// </summary>
-        private static int ClampMax { get => 100; }
+        private int ClampMax { get => 100; }
 
         /// <summary>
         /// Previous volume of the client
@@ -47,7 +47,7 @@ namespace SpotifyVolumeController.UI
         /// <summary>
         /// Debug mode
         /// </summary>
-        private static bool IsDebug { get => bool.Parse(ConfigurationManager.AppSettings["IsDebug"]); }
+        private bool IsDebug { get => bool.Parse(ConfigurationManager.AppSettings["IsDebug"]); }
 
         #endregion Debug Variables
 
@@ -56,30 +56,32 @@ namespace SpotifyVolumeController.UI
         /// <summary>
         /// Client id for the Spotify API
         /// </summary>
-        private static string ClientId { get => ConfigurationManager.AppSettings["ClientId"]; }
+        private string ClientId { get => ConfigurationManager.AppSettings["ClientId"]; }
 
         /// <summary>
         /// Authorisation <seealso cref="Scope" for Spotify API/>
         /// </summary>
-        private static List<string> Scope => new() { Scopes.UserReadPlaybackState, Scopes.UserReadCurrentlyPlaying, Scopes.UserModifyPlaybackState };
+        private Scope AuthScope { get => Scope.UserReadPlaybackState | Scope.UserReadCurrentlyPlaying | Scope.UserModifyPlaybackState; }
 
         /// <summary>
         /// Local redirect uri for authorisation server
         /// </summary>
-        public static string RedirectURL { get => ConfigurationManager.AppSettings["RedirectURL"]; }
+        public string RedirectURL { get => ConfigurationManager.AppSettings["RedirectURL"]; }
 
         /// <summary>
         /// Local server uri for authorisation
         /// </summary>
-        public static string ServerURL { get => ConfigurationManager.AppSettings["ServerURL"]; }
+        public string ServerURL { get => ConfigurationManager.AppSettings["ServerURL"]; }
 
         /// <summary>
         /// Spotify web API
         /// </summary>
-        private SpotifyClient spotifyClient;
+        private SpotifyWebAPI SpotifyWebAPI;
 
-        private static EmbedIOAuthServer _server;
-
+        /// <summary>
+        /// Authorisation for the API, set in <see cref="SpotifyVolumeControllerWindow"/>
+        /// </summary>
+        private ImplicitGrantAuth ImplicitGrantAuth;
 
         #endregion Spotify API Variables
 
@@ -137,20 +139,13 @@ namespace SpotifyVolumeController.UI
                 DebugLog($"Delta: {delta}");
 
                 // get the playback context from the API
-                var playbackContext = spotifyClient.Player;
+                var playbackContext = await SpotifyWebAPI.GetPlaybackAsync();
 
-                if (playbackContext is null)
+                if (playbackContext != null && !playbackContext.HasError() && playbackContext.Device != null)
                 {
-                    return;
-                }
-                var devices = await spotifyClient.Player.GetAvailableDevices();
-
-                if (playbackContext != null && devices.Devices.Count >= 0)
-                {
-                    var device = devices.Devices[0];
-                    var currentVolume = device.VolumePercent;
+                    var currentVolume = playbackContext.Device.VolumePercent;
                     // clamp the desired volume between 0 and 100
-                    var desiredVolume = Clamp(currentVolume.Value + delta, ClampMin, ClampMax);
+                    var desiredVolume = Clamp(currentVolume + delta, ClampMin, ClampMax);
                     // get change in value
                     var volumeChange = Math.Abs(desiredVolume - PreviousVolume);
                     if (volumeChange > 0)
@@ -159,7 +154,13 @@ namespace SpotifyVolumeController.UI
                         if (currentVolume != desiredVolume)
                         {
                             PreviousVolume = desiredVolume;
-                            device.VolumePercent = desiredVolume;
+                            var response = await SpotifyWebAPI.SetVolumeAsync(desiredVolume);
+
+                            // only log if there is an error
+                            if (response != null && response.HasError())
+                            {
+                                DebugLog(response.Error.Message);
+                            }
                         }
                     }
                 }
@@ -172,18 +173,6 @@ namespace SpotifyVolumeController.UI
             {
                 DebugLog("Mouse Event was not bound");
             }
-        }
-
-        private async Task OnImplicitGrantReceived(object sender, ImplictGrantResponse response)
-        {
-            await _server.Stop();
-            spotifyClient = new SpotifyClient(response.AccessToken);
-        }
-
-        private async Task OnErrorReceived(object sender, string error, string state)
-        {
-            DebugLog($"Aborting authorization, error received: {error}");
-            await _server.Stop();
         }
 
         #endregion Keyboard Hook
@@ -200,6 +189,13 @@ namespace SpotifyVolumeController.UI
             DebugListBox.IsEnabled = IsDebug;
 
             DebugLog($"Hook bound: {SubscribeGlobalHook()}");
+
+            ImplicitGrantAuth = new ImplicitGrantAuth(
+              ClientId,
+              RedirectURL,
+              ServerURL,
+              AuthScope
+            );
         }
 
         /// <summary>
@@ -217,19 +213,20 @@ namespace SpotifyVolumeController.UI
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
-        private async void Auth_Click(object sender, RoutedEventArgs e)
+        private void Auth_Click(object sender, RoutedEventArgs e)
         {
-            _server = new EmbedIOAuthServer(new Uri("http://localhost:5000/callback"), 5000);
-            await _server.Start();
-
-            _server.ImplictGrantReceived += OnImplicitGrantReceived;
-            _server.ErrorReceived += OnErrorReceived;
-
-            var request = new LoginRequest(_server.BaseUri, "ClientId", LoginRequest.ResponseType.Token)
+            ImplicitGrantAuth.AuthReceived += (_, payload) =>
             {
-                Scope = new List<string> { Scopes.UserReadEmail }
+                ImplicitGrantAuth.Stop();
+                SpotifyWebAPI = new SpotifyWebAPI()
+                {
+                    TokenType = payload.TokenType,
+                    AccessToken = payload.AccessToken
+                };
             };
-            BrowserUtil.Open(request.ToUri());
+
+            ImplicitGrantAuth.Start();
+            ImplicitGrantAuth.OpenBrowser();
             DebugLog("Opened Auth Browser");
         }
 
@@ -274,7 +271,7 @@ namespace SpotifyVolumeController.UI
         /// <param name="min">Minimum clamp value <seealso cref="ClampMin"/></param>
         /// <param name="max">Maximum clamp value <seealso cref="ClampMax"/></param>
         /// <returns>Clamped <see cref="int"/> <paramref name="value"/> between <paramref name="min"/> and <paramref name="max"/></returns>
-        private static int Clamp(int value, int min, int max)
+        private int Clamp(int value, int min, int max)
         {
             return (value < min) ? min : (value > max) ? max : value;
         }
