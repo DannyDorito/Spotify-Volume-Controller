@@ -7,7 +7,7 @@ using System;
 using SpotifyAPI.Web.Auth;
 using SpotifyAPI.Web;
 using System.Collections.Generic;
-using System.Threading.Tasks;
+using System.Runtime.Versioning;
 
 namespace SpotifyVolumeController.UI
 {
@@ -59,6 +59,11 @@ namespace SpotifyVolumeController.UI
         private static string ClientId { get => ConfigurationManager.AppSettings["ClientId"]; }
 
         /// <summary>
+        /// Secret id for the Spotify API
+        /// </summary>
+        private static string SecretId { get => ConfigurationManager.AppSettings["SecretId"]; }
+
+        /// <summary>
         /// Authorisation <seealso cref="Scope" for Spotify API/>
         /// </summary>
         private static List<string> Scope => new() { Scopes.UserReadPlaybackState, Scopes.UserReadCurrentlyPlaying, Scopes.UserModifyPlaybackState };
@@ -74,11 +79,14 @@ namespace SpotifyVolumeController.UI
         public static string ServerURL { get => ConfigurationManager.AppSettings["ServerURL"]; }
 
         /// <summary>
+        /// Local server port for authorisation
+        /// </summary>
+        public static int ServerPort { get => int.Parse(ConfigurationManager.AppSettings["ServerPort"]); }
+
+        /// <summary>
         /// Spotify web API
         /// </summary>
         private SpotifyClient spotifyClient;
-
-        private static EmbedIOAuthServer _server;
 
 
         #endregion Spotify API Variables
@@ -94,6 +102,7 @@ namespace SpotifyVolumeController.UI
         /// Set up the hook
         /// </summary>
         /// <returns></returns>
+        [SupportedOSPlatform("windows7.0")]
         public bool SubscribeGlobalHook()
         {
             try
@@ -112,9 +121,10 @@ namespace SpotifyVolumeController.UI
         /// <summary>
         /// Dispose of the hook
         /// </summary>
+        [SupportedOSPlatform("windows7.0")]
         public void UnsubscribeGlobalHook()
         {
-            if (GlobalHook != null)
+            if (GlobalHook is not null)
             {
                 GlobalHook.MouseHWheel -= GlobalMouseHWheel;
 
@@ -130,36 +140,39 @@ namespace SpotifyVolumeController.UI
         /// <param name="mouseEventArgs"></param>
         private async void GlobalMouseHWheel(object sender, MouseEventArgs mouseEventArgs)
         {
-            if (mouseEventArgs != null)
+            if (mouseEventArgs is not null)
             {
                 var delta = mouseEventArgs.Delta / DeltaOffset;
 
                 DebugLog($"Delta: {delta}");
 
-                // get the playback context from the API
-                var playbackContext = spotifyClient.Player;
-
-                if (playbackContext is null)
+                if (spotifyClient is null)
                 {
+                    DebugLog("Spotify Client cannot be found");
                     return;
                 }
+
+                // get the playback context from the API
+                var playbackContext = spotifyClient.Player;
                 var devices = await spotifyClient.Player.GetAvailableDevices();
 
-                if (playbackContext != null && devices.Devices.Count >= 0)
+                if (playbackContext is not null && devices.Devices.Count > 0)
                 {
-                    var device = devices.Devices[0];
-                    var currentVolume = device.VolumePercent;
-                    // clamp the desired volume between 0 and 100
-                    var desiredVolume = Clamp(currentVolume.Value + delta, ClampMin, ClampMax);
-                    // get change in value
-                    var volumeChange = Math.Abs(desiredVolume - PreviousVolume);
-                    if (volumeChange > 0)
+                    foreach (var device in devices.Devices)
                     {
-                        // prevent unnecessary API calls if the value is the same e.g. volume may have been clamped
-                        if (currentVolume != desiredVolume)
+                        var currentVolume = device.VolumePercent;
+                        // clamp the desired volume between 0 and 100
+                        var desiredVolume = Clamp(currentVolume.Value + delta, ClampMin, ClampMax);
+                        // get change in value
+                        var volumeChange = Math.Abs(desiredVolume - PreviousVolume);
+                        if (volumeChange > 0)
                         {
-                            PreviousVolume = desiredVolume;
-                            device.VolumePercent = desiredVolume;
+                            // prevent unnecessary API calls if the value is the same e.g. volume may have been clamped
+                            if (currentVolume != desiredVolume)
+                            {
+                                PreviousVolume = desiredVolume;
+                                device.VolumePercent = desiredVolume;
+                            }
                         }
                     }
                 }
@@ -174,18 +187,6 @@ namespace SpotifyVolumeController.UI
             }
         }
 
-        private async Task OnImplicitGrantReceived(object sender, ImplictGrantResponse response)
-        {
-            await _server.Stop();
-            spotifyClient = new SpotifyClient(response.AccessToken);
-        }
-
-        private async Task OnErrorReceived(object sender, string error, string state)
-        {
-            DebugLog($"Aborting authorization, error received: {error}");
-            await _server.Stop();
-        }
-
         #endregion Keyboard Hook
 
         #region UI Event Handlers
@@ -195,6 +196,7 @@ namespace SpotifyVolumeController.UI
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        [SupportedOSPlatform("windows7.0")]
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             DebugListBox.IsEnabled = IsDebug;
@@ -207,6 +209,7 @@ namespace SpotifyVolumeController.UI
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        [SupportedOSPlatform("windows7.0")]
         private void Window_Unloaded(object sender, RoutedEventArgs e)
         {
             UnsubscribeGlobalHook();
@@ -214,20 +217,38 @@ namespace SpotifyVolumeController.UI
 
         /// <summary>
         /// https://johnnycrazy.github.io/SpotifyAPI-NET/docs/5.1.1/auth/implicit_grant
+        /// https://johnnycrazy.github.io/SpotifyAPI-NET/docs/5_to_6
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
         private async void Auth_Click(object sender, RoutedEventArgs e)
         {
-            _server = new EmbedIOAuthServer(new Uri("http://localhost:5000/callback"), 5000);
-            await _server.Start();
-
-            _server.ImplictGrantReceived += OnImplicitGrantReceived;
-            _server.ErrorReceived += OnErrorReceived;
-
-            var request = new LoginRequest(_server.BaseUri, "ClientId", LoginRequest.ResponseType.Token)
+            var config = SpotifyClientConfig.CreateDefault();
+            var server = new EmbedIOAuthServer(new Uri(RedirectURL), ServerPort);
+            server.AuthorizationCodeReceived += async (sender, response) =>
             {
-                Scope = new List<string> { Scopes.UserReadEmail }
+                await server.Stop();
+                var tokenResponse = await new OAuthClient(config).RequestToken(new AuthorizationCodeTokenRequest(
+                  ClientId, SecretId, response.Code, server.BaseUri
+                ));
+
+                AuthButton.Content = "Authorised";
+                AuthButton.IsEnabled = false;
+
+                spotifyClient = new SpotifyClient(config.WithToken(tokenResponse.AccessToken));
+                DebugLog("Authorization Code Received");
+            };
+            server.ErrorReceived += async (sender, error, state) =>
+            {
+                DebugLog($"Aborting authorization, error received: {error}");
+                await server.Stop();
+            };
+
+            await server.Start();
+
+            var request = new LoginRequest(new Uri(RedirectURL), ClientId, LoginRequest.ResponseType.Code)
+            {
+                Scope = Scope
             };
             BrowserUtil.Open(request.ToUri());
             DebugLog("Opened Auth Browser");

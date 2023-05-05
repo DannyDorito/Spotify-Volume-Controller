@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+SpotifyVolumeController/SpotifyVolumeController.UI/App.config
+SpotifyVolumeController/SpotifyVolumeController.UI/appsettings.json
