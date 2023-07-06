@@ -54,14 +54,14 @@ namespace SpotifyVolumeController.UI
         #region Spotify API Variables
 
         /// <summary>
-        /// Client id for the Spotify API
+        /// Client Id for the Spotify API
         /// </summary>
         private static string ClientId { get => ConfigurationManager.AppSettings["ClientId"]; }
 
         /// <summary>
-        /// Secret id for the Spotify API
+        /// Client Secret for the Spotify API
         /// </summary>
-        private static string SecretId { get => ConfigurationManager.AppSettings["SecretId"]; }
+        private static string ClientSecret { get => ConfigurationManager.AppSettings["ClientSecret"]; }
 
         /// <summary>
         /// Authorisation <seealso cref="Scope" for Spotify API/>
@@ -229,7 +229,7 @@ namespace SpotifyVolumeController.UI
             {
                 await server.Stop();
                 var tokenResponse = await new OAuthClient(config).RequestToken(new AuthorizationCodeTokenRequest(
-                  ClientId, SecretId, response.Code, server.BaseUri
+                  ClientId, ClientSecret, response.Code, server.BaseUri
                 ));
 
                 AuthButton.Content = "Authorised";

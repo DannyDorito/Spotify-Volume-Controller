@@ -38,11 +38,9 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\globalmousekeyhook\MouseKeyHook\MouseKeyHook.csproj" />
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="EmbedIO" Version="3.5.2" />
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
+    <PackageReference Include="MouseKeyHook" Version="5.7.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="SpotifyAPI.Web" Version="7.0.0" />
     <PackageReference Include="SpotifyAPI.Web.Auth" Version="7.0.0" />
@@ -50,8 +48,5 @@
     <PackageReference Include="System.ValueTuple" Version="4.5.0" />
     <PackageReference Include="Unosquare.Swan.Lite" Version="3.1.0" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="7.0.0" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="appsettings.json" />
   </ItemGroup>
 </Project>
