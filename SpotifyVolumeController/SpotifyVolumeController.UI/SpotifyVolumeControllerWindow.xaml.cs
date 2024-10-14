@@ -8,6 +8,7 @@ using SpotifyAPI.Web.Auth;
 using SpotifyAPI.Web;
 using System.Collections.Generic;
 using System.Runtime.Versioning;
+using System.Globalization;
 
 namespace SpotifyVolumeController.UI
 {
@@ -23,7 +24,7 @@ namespace SpotifyVolumeController.UI
         /// <summary>
         /// Mousewheel delta offset for the mousewheel movement
         /// </summary>
-        private static int DeltaOffset { get => int.Parse(ConfigurationManager.AppSettings["DeltaOffset"]); }
+        private static int DeltaOffset { get => int.Parse(ConfigurationManager.AppSettings["DeltaOffset"], NumberStyles.Integer); }
 
         /// <summary>
         /// Minimum volume clamp value
@@ -71,17 +72,17 @@ namespace SpotifyVolumeController.UI
         /// <summary>
         /// Local redirect uri for authorisation server
         /// </summary>
-        public static string RedirectURL { get => ConfigurationManager.AppSettings["RedirectURL"]; }
+        public static Uri RedirectURL { get => new(ConfigurationManager.AppSettings["RedirectURL"]); }
 
         /// <summary>
         /// Local server uri for authorisation
         /// </summary>
-        public static string ServerURL { get => ConfigurationManager.AppSettings["ServerURL"]; }
+        public static Uri ServerURL { get => new(ConfigurationManager.AppSettings["ServerURL"]); }
 
         /// <summary>
         /// Local server port for authorisation
         /// </summary>
-        public static int ServerPort { get => int.Parse(ConfigurationManager.AppSettings["ServerPort"]); }
+        public static int ServerPort { get => int.Parse(ConfigurationManager.AppSettings["ServerPort"], NumberStyles.Integer); }
 
         /// <summary>
         /// Spotify web API
@@ -154,7 +155,7 @@ namespace SpotifyVolumeController.UI
 
                 // get the playback context from the API
                 var playbackContext = spotifyClient.Player;
-                var devices = await spotifyClient.Player.GetAvailableDevices();
+                var devices = await spotifyClient.Player.GetAvailableDevices().ConfigureAwait(true);
 
                 if (playbackContext is not null && devices.Devices.Count > 0)
                 {
@@ -224,29 +225,31 @@ namespace SpotifyVolumeController.UI
         private async void Auth_Click(object sender, RoutedEventArgs e)
         {
             var config = SpotifyClientConfig.CreateDefault();
-            var server = new EmbedIOAuthServer(new Uri(RedirectURL), ServerPort);
-            server.AuthorizationCodeReceived += async (sender, response) =>
+            using (var server = new EmbedIOAuthServer(RedirectURL, ServerPort))
             {
-                await server.Stop();
-                var tokenResponse = await new OAuthClient(config).RequestToken(new AuthorizationCodeTokenRequest(
-                  ClientId, ClientSecret, response.Code, server.BaseUri
-                ));
+                server.AuthorizationCodeReceived += async (sender, response) =>
+                        {
+                            await server.Stop().ConfigureAwait(true);
+                            var tokenResponse = await new OAuthClient(config).RequestToken(new AuthorizationCodeTokenRequest(
+                              ClientId, ClientSecret, response.Code, server.BaseUri
+                            )).ConfigureAwait(true);
 
-                AuthButton.Content = "Authorised";
-                AuthButton.IsEnabled = false;
+                            AuthButton.Content = "Authorised";
+                            AuthButton.IsEnabled = false;
 
-                spotifyClient = new SpotifyClient(config.WithToken(tokenResponse.AccessToken));
-                DebugLog("Authorization Code Received");
-            };
-            server.ErrorReceived += async (sender, error, state) =>
-            {
-                DebugLog($"Aborting authorization, error received: {error}");
-                await server.Stop();
-            };
+                            spotifyClient = new SpotifyClient(config.WithToken(tokenResponse.AccessToken));
+                            DebugLog("Authorization Code Received");
+                        };
+                server.ErrorReceived += async (sender, error, state) =>
+                {
+                    DebugLog($"Aborting authorization, error received: {error}");
+                    await server.Stop().ConfigureAwait(true);
+                };
 
-            await server.Start();
+                await server.Start().ConfigureAwait(true);
+            }
 
-            var request = new LoginRequest(new Uri(RedirectURL), ClientId, LoginRequest.ResponseType.Code)
+            var request = new LoginRequest(RedirectURL, ClientId, LoginRequest.ResponseType.Code)
             {
                 Scope = Scope
             };

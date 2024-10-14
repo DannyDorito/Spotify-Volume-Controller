@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net6.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
 	<EnableWindowsTargeting>true</EnableWindowsTargeting>
     <OutputType>WinExe</OutputType>
     <PublishUrl>publish\</PublishUrl>
@@ -25,6 +25,17 @@
   </PropertyGroup>
   <PropertyGroup>
     <StartupObject>SpotifyVolumeController.UI.App</StartupObject>
+    <NeutralLanguage>en-GB</NeutralLanguage>
+    <AnalysisLevel>6.0-all</AnalysisLevel>
+    <Copyright>John Allison</Copyright>
+    <PackageProjectUrl>https://github.com/DannyDorito/Spotify-Volume-Controller</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/DannyDorito/Spotify-Volume-Controller</RepositoryUrl>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.8">
@@ -43,11 +54,24 @@
     <PackageReference Include="Microsoft.CSharp" Version="4.7.0" />
     <PackageReference Include="MouseKeyHook" Version="5.7.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="SpotifyAPI.Web" Version="7.1.1" />
-    <PackageReference Include="SpotifyAPI.Web.Auth" Version="7.1.1" />
+    <PackageReference Include="SpotifyAPI.Web" Version="7.2.1" />
+    <PackageReference Include="SpotifyAPI.Web.Auth" Version="7.2.1" />
     <PackageReference Include="System.Data.DataSetExtensions" Version="4.5.0" />
     <PackageReference Include="System.ValueTuple" Version="4.5.0" />
     <PackageReference Include="Unosquare.Swan.Lite" Version="3.1.0" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Update="Properties\Settings.Designer.cs">
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="Properties\Settings.settings">
+      <Generator>PublicSettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
   </ItemGroup>
 </Project>
